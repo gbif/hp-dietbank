@@ -1,11 +1,11 @@
 ---
 lang-ref: home
 layout: home
-title: My headline
-description: Lorem markdownum spatium limes indefessus neque *at* orat aestuat
-background: /assets/images/placeholders/templates/w1600h800.png
-imageLicense: None for this image
-height: 70vh
+title: Dietbank
+description: Portal for advanced dietry research
+background: "{{ site.data.images.vliegenvanger.src }}"
+imageLicense: "{{ site.data.images.vliegenvanger.caption }}"
+height: 50vh
 cta:
   - text: Occurrences
     href: /occurrence/search
@@ -13,6 +13,10 @@ cta:
   - text: Datasets
     href: /dataset/search
 permalink: /
+composition:
+  - type: heroImage # the block type
+  - data: home.stats
+    type: stats
 ---
 
 Edit `/home.md` to change the text.

@@ -3,6 +3,10 @@ This is the fil in which you configure the data widgets. Feel free to experiment
 But it is also completely okay to write and issue and ask for help to configure the widgets.
 You probably want to check out the documentation at https://hp-theme.gbif-staging.org/documentation-intro
 */
+
+const dietbankPublisherKey = 'aba13a77-07e3-428d-af47-05d98eec61ce';
+const publisherKey = 'b8323864-602a-4a7d-9127-bb903054e97d';
+
 var siteConfig = {
   "version": 3,
   "pages": [ // which pages do we want to enable
@@ -12,24 +16,24 @@ var siteConfig = {
     {
       "id": "occurrenceKey"
     },
-    {
-      "id": "collectionSearch"
-    },
-    {
-      "id": "collectionKey"
-    },
+    // {
+    //   "id": "collectionSearch"
+    // },
+    // {
+    //   "id": "collectionKey"
+    // },
     {
       "id": "datasetSearch"
     },
     {
       "id": "datasetKey"
     },
-    {
-      "id": "institutionSearch"
-    },
-    {
-      "id": "institutionKey"
-    },
+    // {
+    //   "id": "institutionSearch"
+    // },
+    // {
+    //   "id": "institutionKey"
+    // },
     {
       "id": "literatureSearch"
     }
@@ -40,8 +44,8 @@ var siteConfig = {
     "OCCURRENCE",
     "DATASET",
     "COLLECTION",
-    "INSTITUTION",
-    "LITERATURE"
+    // "INSTITUTION",
+    // "LITERATURE"
   ],
   "dataHeader": {
     "enableApiPopup": false,
@@ -91,13 +95,9 @@ var siteConfig = {
   "messages": {},
   "occurrenceSearch": {
     "scope": {
-      "type": "in",
+      "type": "equals",
       "key": "publishingOrg",
-      "values": [
-        "760d5f24-4c04-40da-9646-1b2c935da502",
-        "2e7df380-8356-4533-bcb3-5459e23c794e",
-        "8e1a97a0-3ca8-11d9-8439-b8a03c50a862"
-      ]
+      "value": publisherKey
     },
     "highlightedFilters": [
       "taxonKey",
@@ -167,7 +167,8 @@ var siteConfig = {
     scope: {
       // TODO: you should add a scope here if you need search to be limited to a subset
       // search filters have the format {field: [values]}
-      type: ['OCCURRENCE', 'CHECKLIST']
+      type: ['OCCURRENCE', 'CHECKLIST'],
+      publishingOrg: [publisherKey]
     },
   },
   "publisherSearch": {},
@@ -175,13 +176,9 @@ var siteConfig = {
     "scope": {
       // TODO: you should add a scope here if you need search to be limited to a subset
       // literature search use the predicate format similar to occurrence search
-      "type": "in",
+      "type": "equals",
       "key": "publishingOrganizationKey",
-      "values": [
-        "760d5f24-4c04-40da-9646-1b2c935da502",
-        "2e7df380-8356-4533-bcb3-5459e23c794e",
-        "8e1a97a0-3ca8-11d9-8439-b8a03c50a862"
-      ]
+      "value": publisherKey
     }
   }
 }

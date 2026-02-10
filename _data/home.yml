@@ -1,0 +1,11 @@
+stats:
+  features:
+    - title: <span data-ajax-url="https://api.gbif.org/v1/dataset/search?publishingOrg=b8323864-602a-4a7d-9127-bb903054e97d&limit=0">600</span>
+      description: Datasets
+      background: /assets/images/icons/datasets.svg
+      href: /dataset/search
+      # using a dynamic value from some endpoint. It will default to look for a 'count' value in the response
+    - title: <span data-ajax-url="https://api.gbif.org/v1/occurrence/search?publishingOrg=b8323864-602a-4a7d-9127-bb903054e97d&limit=0">24.000.000</span>
+      description: Occurrences
+      href: /occurrence/search
+      background: /assets/images/icons/occurrences.svg
