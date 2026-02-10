@@ -2,14 +2,18 @@
 # You should create one of these files for each language you support. E.g. /_data/es/navigation.yml for the spanish version of the menu
 # Links listed below will be included in your site's navbar (navigation at the top)
 
+- text: About
+  href: /about
 - text: Data
   menu: 
+  - text: Summary
+    href: /summary
   - text: Occurrences
     href: /occurrence/search
   - text: Datasets
     href: /dataset/search
-  - text: Collections
-    href: /collection/search
+  # - text: Collections
+  #   href: /collection/search
   - text: Literature
     href: /literature/search
 - text: Links

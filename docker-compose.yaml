@@ -1,0 +1,18 @@
+services:
+  portal:
+    build: .
+    image: hp-dietbank-jekyll:latest
+    platform: linux/amd64
+    environment:
+      - JEKYLL_ENV=development
+      - UID=${UID:-1000}
+      - GID=${GID:-1000}
+    volumes:
+      - ./:/srv/jekyll:cached
+    ports:
+      - 4000:4000
+    working_dir: /srv/jekyll
+    # command: ["sh", "-lc", "bundle exec jekyll build && chown -R ${UID:-1000}:${GID:-1000} _site || true; exec bundle exec jekyll serve --host 0.0.0.0 --watch"]
+    command: ["sh", "-lc", "bundle exec jekyll serve --host 0.0.0.0 --watch"]
+    stdin_open: true
+    tty: true

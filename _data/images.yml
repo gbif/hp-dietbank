@@ -14,3 +14,8 @@ example:
   src: /assets/images/placeholders/templates/w1600h800.png
   caption: |
     Isotype of _Gradiental rosa_
+
+vliegenvanger:
+  src: /assets/images/vliegenvager_1920x470.jpg
+  caption: |
+    Vliegenvanger
