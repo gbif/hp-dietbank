@@ -10,6 +10,10 @@ You can find information on editing this site and more on [gbif/hosted-portals](
 
 > Powered by [GBIF](https://www.gbif.org/)
 
+## Dietbank specifics
+
+- **Diet by host** (`/hosts`) reads a host-species index that must be rebuilt after publishing datasets. See [docs/host-index.md](docs/host-index.md) for where it lives, how to update it, and how to preview the site locally.
+
 # Guide
 This is a Jekyll site using the remote theme gbif/jekyll-hp-base-theme
 The theme comes with a site navigation and footer and multilingual support.

@@ -94,11 +94,12 @@ var siteConfig = {
   ],
   "messages": {},
   "occurrenceSearch": {
-    "scope": {
+    // Per-environment override: set dietbank.occurrenceScope (a predicate) in _config*.yml
+    "scope": {% if site.dietbank.occurrenceScope %}{{ site.dietbank.occurrenceScope | jsonify }}{% else %}{
       "type": "equals",
       "key": "publishingOrg",
       "value": publisherKey
-    },
+    }{% endif %},
     "highlightedFilters": [
       "taxonKey",
       "verbatimScientificName",

@@ -1,0 +1,234 @@
+{% comment %}
+  Diet-by-host explorer. Reads the host index built by scripts/build_host_index.py
+  (dwc:associatedTaxa is not searchable on GBIF, so the index supplies a predicate per host)
+  and renders: a host picker, diet composition (frequency of occurrence / relative read
+  abundance per prey class, order or family), links into the occurrence search, and a GBIF
+  dashboard filtered to the selected host.
+{% endcomment %}
+{% assign lib = site.gbifApacheInclude.componentsScriptJsModule | default: "https://www-lib.gbif-staging.org/gbif-lib.js" %}
+{% assign languageCode = site.data.languages[page.lang].widgetLocale | default: site.data.languages[page.lang].languageCode | default: page.lang | default: site.algae.rootLang | default: 'en' %}
+{% assign hostIndex = include.content.hostIndex | default: site.dietbank.hostIndex | default: "/assets/data/hosts.json" %}
+{% assign charts = include.content.charts | default: "taxa,year,month,datasetKey,eventId" | split: "," %}
+
+<section class="section host-explorer">
+  <div class="container">
+    {% if include.content.intro %}
+    <div class="content dh-intro">{{ include.content.intro | markdownify }}</div>
+    {% endif %}
+
+    <div class="dh-picker">
+      <label for="dh-host" class="dh-label">Host species</label>
+      <div class="select is-medium">
+        <select id="dh-host" disabled><option>Loading hosts…</option></select>
+      </div>
+    </div>
+
+    <div id="dh-empty" class="notification" hidden></div>
+
+    <div id="dh-body" hidden>
+      <header class="dh-host-header">
+        <h2 class="title is-3 dh-host-name"></h2>
+        <p class="dh-host-taxonomy"></p>
+      </header>
+
+      <dl class="dh-stats"></dl>
+
+      <div class="dh-actions">
+        <a class="button is-primary dh-link-search">Browse records</a>
+        <a class="button dh-link-map">Map</a>
+        <a class="button dh-link-download">Download</a>
+      </div>
+
+      <section class="dh-card" aria-labelledby="dh-diet-title">
+        <div class="dh-card-head">
+          <div>
+            <h3 class="title is-5" id="dh-diet-title">Diet composition</h3>
+            <p class="dh-subtitle"></p>
+          </div>
+          <div class="dh-controls">
+            <div class="dh-segmented" role="group" aria-label="Prey rank">
+              <button type="button" data-rank="class">Class</button>
+              <button type="button" data-rank="order" aria-pressed="true">Order</button>
+              <button type="button" data-rank="family">Family</button>
+            </div>
+            <div class="dh-segmented" role="group" aria-label="Measure">
+              <button type="button" data-metric="foo" aria-pressed="true" title="Share of samples in which the prey was detected">Occurrence</button>
+              <button type="button" data-metric="rra" title="Mean share of a sample's DNA reads">Read abundance</button>
+            </div>
+            <button type="button" class="dh-table-toggle" aria-pressed="false">Table</button>
+          </div>
+        </div>
+        <div class="dh-chart" role="list"></div>
+        <div class="dh-table" hidden></div>
+        <p class="dh-note"></p>
+      </section>
+
+      <section class="dh-card">
+        <h3 class="title is-5">Records for this host</h3>
+        <div class="dh-dashboard gbif"></div>
+      </section>
+    </div>
+    <div class="dh-tooltip" role="tooltip" hidden></div>
+  </div>
+</section>
+
+<script type="module">
+  import { renderDashboard, languages } from "{{ lib }}";
+
+  const INDEX_URL = "{{ hostIndex | relative_url }}";
+  const SEARCH_URL = "{{ '/occurrence/search' | relative_url }}";
+  const CHARTS = {{ charts | jsonify }};
+  const widgetLocale = "{{ languageCode }}";
+  const rankLabel = { class: "class", order: "order", family: "family" };
+  const metricInfo = {
+    foo: { label: "Frequency of occurrence", short: "FOO", help: "share of samples in which the prey was detected" },
+    rra: { label: "Relative read abundance", short: "RRA", help: "mean share of each sample's DNA reads" },
+  };
+
+  const $ = (sel) => document.querySelector(".host-explorer " + sel);
+  const select = $("#dh-host");
+  const state = { hosts: [], host: null, rank: "order", metric: "foo", table: false };
+  const pct = (v) => (v == null ? "–" : (v * 100).toFixed(v < 0.1 ? 1 : 0) + "%");
+  const fmt = (n) => Number(n).toLocaleString("en");
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+  function searchUrl(host, view) {
+    const params = new URLSearchParams({ predicate: JSON.stringify(host.predicate) });
+    if (view) params.set("view", view);
+    return SEARCH_URL + "?" + params.toString();
+  }
+
+  function renderPicker() {
+    const groups = {};
+    for (const h of state.hosts) (groups[h.taxon?.class || "Other hosts"] ??= []).push(h);
+    select.innerHTML = Object.keys(groups).sort().map((g) =>
+      `<optgroup label="${esc(g)}">` +
+      groups[g].map((h) => `<option value="${esc(h.name)}">${esc(h.name)} (${fmt(h.samples)} samples)</option>`).join("") +
+      `</optgroup>`
+    ).join("");
+    select.disabled = state.hosts.length < 2;
+  }
+
+  function renderHost() {
+    const h = state.host;
+    select.value = h.name;
+    $(".dh-host-name").innerHTML = `<i>${esc(h.taxon?.canonicalName || h.name)}</i>`;
+    const t = h.taxon || {};
+    $(".dh-host-taxonomy").textContent = [t.class, t.order, t.family].filter(Boolean).join(" › ") ||
+      "Not matched to the GBIF Backbone";
+    const stats = [
+      ["Samples", fmt(h.samples)],
+      ["Prey records", fmt(h.records)],
+      ["Datasets", fmt(h.datasets.length)],
+      ["Years", h.years ? (h.years[0] === h.years[1] ? h.years[0] : h.years.join("–")) : "–"],
+      ["Countries", h.countries.join(", ") || "–"],
+    ];
+    $(".dh-stats").innerHTML = stats.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("");
+    $(".dh-link-search").href = searchUrl(h);
+    $(".dh-link-map").href = searchUrl(h, "map");
+    $(".dh-link-download").href = searchUrl(h, "download");
+    renderDiet();
+    renderHostDashboard();
+  }
+
+  function renderDiet() {
+    const h = state.host, m = metricInfo[state.metric];
+    const rows = [...(h.diet[state.rank] || [])]
+      .filter((r) => r[state.metric] != null)
+      .sort((a, b) => b[state.metric] - a[state.metric])
+      .slice(0, 30);
+    document.querySelectorAll(".host-explorer [data-rank]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.rank === state.rank));
+    document.querySelectorAll(".host-explorer [data-metric]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.metric === state.metric));
+    $(".dh-subtitle").textContent = `${m.label} per prey ${rankLabel[state.rank]}: ${m.help}, n = ${fmt(h.samples)} samples`;
+
+    const max = state.metric === "foo" ? 1 : Math.max(...rows.map((r) => r.rra), 0.0001);
+    $(".dh-chart").innerHTML = rows.map((r, i) => `
+      <div class="dh-row" role="listitem" data-i="${i}" tabindex="0">
+        <span class="dh-row-name${r.name === "Unassigned" ? " is-unassigned" : ""}">${r.name === "Unassigned" ? `Not identified to ${rankLabel[state.rank]}` : esc(r.name)}</span>
+        <span class="dh-row-track"><span class="dh-row-bar" style="width:${(r[state.metric] / max) * 100}%"></span></span>
+        <span class="dh-row-value">${pct(r[state.metric])}</span>
+      </div>`).join("") || `<p class="dh-note">No read counts available for this host.</p>`;
+
+    $(".dh-table").innerHTML = `<table class="table is-narrow is-fullwidth is-striped">
+      <thead><tr><th>Prey ${rankLabel[state.rank]}</th><th class="has-text-right">Samples</th><th class="has-text-right">FOO</th><th class="has-text-right">RRA</th><th class="has-text-right">Records</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="has-text-right">${fmt(r.samples)}</td><td class="has-text-right">${pct(r.foo)}</td><td class="has-text-right">${pct(r.rra)}</td><td class="has-text-right">${fmt(r.records)}</td></tr>`).join("")}</tbody></table>`;
+    $(".dh-chart").hidden = state.table;
+    $(".dh-table").hidden = !state.table;
+    $(".dh-table-toggle").setAttribute("aria-pressed", state.table);
+    $(".dh-note").textContent = `Top ${rows.length} prey taxa. ` +
+      (state.metric === "foo" ? "Occurrence values do not sum to 100%: one sample usually contains several prey." :
+        "Read abundance is a rough proxy for biomass; it is affected by primer bias and digestion.");
+
+    const tip = $(".dh-tooltip");
+    $(".dh-chart").querySelectorAll(".dh-row").forEach((el) => {
+      const r = rows[el.dataset.i];
+      const show = () => {
+        tip.innerHTML = `<strong>${esc(r.name)}</strong><br>Detected in ${fmt(r.samples)} of ${fmt(h.samples)} samples (${pct(r.foo)})<br>` +
+          `Mean read share: ${pct(r.rra)}<br>${fmt(r.records)} records`;
+        tip.hidden = false;
+        const box = el.getBoundingClientRect(), host = $(".container").getBoundingClientRect();
+        tip.style.top = `${box.bottom - host.top + 4}px`;
+        tip.style.left = `${Math.min(box.left - host.left + box.width * 0.35, host.width - 260)}px`;
+      };
+      el.addEventListener("mouseenter", show);
+      el.addEventListener("focus", show);
+      el.addEventListener("mouseleave", () => (tip.hidden = true));
+      el.addEventListener("blur", () => (tip.hidden = true));
+    });
+  }
+
+  function renderHostDashboard() {
+    // renderDashboard mounts a React root; give it a fresh element per host.
+    const wrap = $(".dh-dashboard");
+    wrap.innerHTML = "";
+    const el = document.createElement("div");
+    wrap.appendChild(el);
+    const languageConfig = {{ site.data.languages | jsonify }} || { en: { label: "English" } };
+    const defaultLang = "{{ site.algae.rootLang }}" || "en";
+    renderDashboard({
+      rootElement: el,
+      config: {
+        languages: Object.keys(languageConfig).map((code) => ({
+          code, label: languageConfig[code].label, textDirection: languageConfig[code].textDirection ?? "ltr", default: code === defaultLang,
+        })),
+        ...(siteConfig ?? {}),
+        theme: { primary: themeStyle?.colors?.primary, borderRadius: themeStyle?.square ? 0 : 3, stickyOffset: "0px", ...(siteConfig?.theme ?? {}) },
+        linkToGbifOrg: true,
+      },
+      locale: languages.find((l) => l.code === widgetLocale),
+      predicate: state.host.predicate,
+      charts: CHARTS,
+    });
+  }
+
+  function selectHost(name, push) {
+    state.host = state.hosts.find((h) => h.name === name) || state.hosts[0];
+    const url = new URL(location.href);
+    url.searchParams.set("host", state.host.name);
+    history[push ? "pushState" : "replaceState"](null, "", url);
+    renderHost();
+  }
+
+  document.querySelectorAll(".host-explorer [data-rank]").forEach((b) => b.addEventListener("click", () => { state.rank = b.dataset.rank; renderDiet(); }));
+  document.querySelectorAll(".host-explorer [data-metric]").forEach((b) => b.addEventListener("click", () => { state.metric = b.dataset.metric; renderDiet(); }));
+  $(".dh-table-toggle").addEventListener("click", () => { state.table = !state.table; renderDiet(); });
+  select.addEventListener("change", () => selectHost(select.value, true));
+  window.addEventListener("popstate", () => selectHost(new URL(location.href).searchParams.get("host"), false));
+
+  try {
+    const res = await fetch(INDEX_URL);
+    if (!res.ok) throw new Error(res.status);
+    const index = await res.json();
+    state.hosts = index.hosts.sort((a, b) => b.samples - a.samples);
+    if (!state.hosts.length) throw new Error("empty");
+    renderPicker();
+    $("#dh-body").hidden = false;
+    selectHost(new URL(location.href).searchParams.get("host"), false);
+  } catch (e) {
+    select.innerHTML = "<option>No hosts</option>";
+    const empty = $("#dh-empty");
+    empty.textContent = "No host data available yet. Host species are read from dwc:associatedTaxa (e.g. \"host:Acrocephalus arundinaceus\") in published Dietbank datasets.";
+    empty.hidden = false;
+    console.warn("Host index could not be loaded", INDEX_URL, e);
+  }
+</script>

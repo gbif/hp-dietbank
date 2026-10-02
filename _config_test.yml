@@ -4,3 +4,15 @@ siteMeasurements:
   enable: false
 
 graphqlEndpoint: "https://graphql.gbif-test.org/graphql"
+
+# The test site reads from gbif-test, where the Dietbank test dataset lives
+gbifApacheInclude:
+  componentsScriptJsModule: https://www-lib.gbif-test.org/gbif-lib.js
+dietbank:
+  hostIndex: /assets/data/hosts-test.json
+  occurrenceScope:
+    type: in
+    key: datasetKey
+    values:
+      - f63bb1d0-b05b-4071-b473-075911d8d8ab
+      - 6f6edfa8-c0b2-4a9f-859b-145288dd6022

@@ -8,6 +8,8 @@
   menu: 
   - text: Summary
     href: /summary
+  - text: Diet by host
+    href: /hosts
   - text: Occurrences
     href: /occurrence/search
   - text: Datasets
