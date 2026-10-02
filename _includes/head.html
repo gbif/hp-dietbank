@@ -1,0 +1,17 @@
+{% comment %}
+  Overrides the theme's head.html, which is included after /assets/theme/js/config.js and
+  before the data widgets start. Keep the theme's own content (Plausible) in sync.
+{% endcomment %}
+{% if site.plausible.enabled %}
+  <script defer data-domain="{{ site.plausible.dataDomain }}" src="https://plausible.io/js/script.js"></script>
+{% endif %}
+
+{% comment %}
+  Per-environment occurrence scope (see docs/host-index.md). This lives here rather than in
+  _includes/js/config.js because GBIF's build checks config.js as plain JavaScript, without Liquid.
+{% endcomment %}
+{% if site.dietbank.occurrenceScope %}
+  <script>
+    siteConfig.occurrenceSearch.scope = {{ site.dietbank.occurrenceScope | jsonify }};
+  </script>
+{% endif %}
