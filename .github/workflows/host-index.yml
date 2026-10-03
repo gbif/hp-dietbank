@@ -3,7 +3,7 @@
 # - the Dietbank Django app (repository_dispatch "dietbank-dataset-registered") after it registers a
 #   dataset on GBIF, with client_payload {dataset_key, environment: test|prod, study_id}
 # - a nightly schedule (catches missed notifications, re-publications and deletions)
-# - manually from the Actions tab
+# - manually from the Actions tab or `gh workflow run host-index.yml -f environment=test -f dataset_key=<key>`
 name: Host index
 
 on:
@@ -18,6 +18,10 @@ on:
         type: choice
         options: [both, test, prod]
         default: both
+      dataset_key:
+        description: Newly registered dataset key (optional; needs environment test or prod). Waits until GBIF has indexed it; a test key is added to the test site.
+        type: string
+        required: false
 
 permissions:
   contents: write
@@ -44,21 +48,21 @@ jobs:
           PAYLOAD_KEY: ${{ github.event.client_payload.dataset_key }}
           PAYLOAD_ENV: ${{ github.event.client_payload.environment }}
           INPUT_ENV: ${{ github.event.inputs.environment }}
+          INPUT_KEY: ${{ github.event.inputs.dataset_key }}
         run: |
-          key=""
           case "$EVENT" in
-            repository_dispatch)
-              env="$PAYLOAD_ENV"
-              key="$PAYLOAD_KEY"
-              if ! [[ "$key" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
-                echo "::error::Invalid dataset_key in payload: $key"; exit 1
-              fi
-              if [[ "$env" != "test" && "$env" != "prod" ]]; then
-                echo "::error::Invalid environment in payload: $env"; exit 1
-              fi ;;
-            workflow_dispatch) env="${INPUT_ENV:-both}" ;;
-            *) env="both" ;;
+            repository_dispatch) env="$PAYLOAD_ENV"; key="$PAYLOAD_KEY" ;;
+            workflow_dispatch) env="${INPUT_ENV:-both}"; key="$(echo "$INPUT_KEY" | tr -d '[:space:]')" ;;
+            *) env="both"; key="" ;;
           esac
+          if [ -n "$key" ] || [ "$EVENT" = "repository_dispatch" ]; then
+            if ! [[ "$key" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+              echo "::error::Invalid dataset key: $key"; exit 1
+            fi
+            if [[ "$env" != "test" && "$env" != "prod" ]]; then
+              echo "::error::A dataset key needs environment test or prod, got: $env"; exit 1
+            fi
+          fi
           echo "environment=$env" >> "$GITHUB_OUTPUT"
           echo "dataset_key=$key" >> "$GITHUB_OUTPUT"
           echo "Rebuilding: $env ${key:+(notified about $key)}"

@@ -13,9 +13,9 @@ You can find information on editing this site and more on [gbif/hosted-portals](
 ## Dietbank specifics
 
 **Diet by host** (`/hosts`) reads a host-species index (`assets/data/hosts*.json`) that is rebuilt after datasets are published. The [Host index workflow](.github/workflows/host-index.yml) rebuilds it:
-- when the Dietbank Django app reports a newly registered dataset;
 - every night;
-- when started by hand from the Actions tab.
+- when started by hand from the Actions tab;
+- optionally, when the Dietbank Django app reports a newly registered dataset.
 
 [docs/host-index.md](docs/host-index.md) covers how the index works, how to rebuild it by hand, and how to preview the site locally.
 
@@ -29,29 +29,33 @@ You can find information on editing this site and more on [gbif/hosted-portals](
 
 Keep `_includes/js/config.js` plain JavaScript. GBIF's build syntax-checks it with Node before running Jekyll and aborts on any Liquid. Check it locally with `node --check _includes/js/config.js`.
 
-### Activating the publication trigger (Django → GitHub)
+### Rebuilding the host index after publishing
 
-The Dietbank Django app (`~/Projects/dietbank`, branch `feature/portal-host-index`) sends a GitHub `repository_dispatch` event, `dietbank-dataset-registered`, to this repository:
-- after registering a dataset for testing (environment `test`);
-- after publishing it on GBIF.org (environment `prod`).
+The nightly run picks up new and changed **GBIF.org** datasets of the Dietbank publisher by itself. Start a rebuild by hand when you don't want to wait, or after registering a **test** dataset, which the nightly run can't discover.
 
-The workflow then waits until GBIF has indexed the dataset, rebuilds the index, and commits it to `master`. A test dataset is also added to `_data/test_datasets.yml`.
+1. Go to [Actions → Host index](https://github.com/gbif/hp-dietbank/actions/workflows/host-index.yml) → **Run workflow**.
+2. Choose the environment:
+   - `test` for a dataset registered for testing (its key is shown in the Django admin as *GBIF UAT key*);
+   - `prod` for a dataset published on GBIF.org;
+   - `both` to rebuild everything without a new key.
+3. Optionally fill in **dataset_key**. The run then waits until GBIF has indexed that dataset (at least one 5-minute check), and a test key is added to `_data/test_datasets.yml`.
+4. The run commits the rebuilt index to `master` only if something changed. GBIF then rebuilds the sites within minutes.
 
-1. **Check the workflow.** In [Actions → Host index](https://github.com/gbif/hp-dietbank/actions/workflows/host-index.yml), click **Run workflow** (environment `both`) and confirm the run succeeds.
-2. **Create a GitHub token** at https://github.com/settings/personal-access-tokens/new:
-   - Resource owner: `gbif`.
-   - Repository access: *Only select repositories* → `gbif/hp-dietbank`.
-   - Permissions → Repository → **Contents: Read and write**, which `repository_dispatch` requires. Nothing else is needed.
-   - Expiration: at most a year. Set a reminder to renew it, because notifications silently stop once it expires (the nightly run still catches up).
-   - The `gbif` organisation may have to approve the token before it works.
-3. **Deploy the Django app** with the `feature/portal-host-index` changes. The deploy runs migration `0010`, which adds the GBIF dataset-key fields.
-4. **Set `PORTAL_GITHUB_TOKEN`** in the Django server environment and restart the app. Without it, the app only logs that it skipped the notification.
-5. **Test it.** In the Django admin → Studies:
-   - Select a study whose *GBIF UAT key* is filled in. For studies registered before this change, type in the key, e.g. `f63bb1d0-b05b-4071-b473-075911d8d8ab`.
-   - Run the action **Notify hosted portal to rebuild its host index**.
-   - A *Host index* run should appear in Actions within seconds. It finishes after at least one 5-minute indexing check, and it commits only if something changed.
+The same from a terminal, with the [GitHub CLI](https://cli.github.com):
+
+```bash
+gh workflow run host-index.yml --repo gbif/hp-dietbank -f environment=test -f dataset_key=<key>
+```
+
+You need write access to this repository for either route.
 
 GitHub disables scheduled workflows in public repositories after 60 days without repository activity. If the nightly run stops, re-enable it on the workflow page.
+
+#### Optional: automatic trigger from the Django app
+
+The Dietbank Django app can start the same run itself right after registering a dataset. It sends a `repository_dispatch` event, `dietbank-dataset-registered`, with the dataset key and environment (`backend/util/gbif/portal.py`). For that it needs a GitHub token with **Contents: Read and write** on `gbif/hp-dietbank`, set as `PORTAL_GITHUB_TOKEN` on the server.
+
+Tokens for repositories in the `gbif` organisation have to be created or approved by GBIF, so ask helpdesk@gbif.org if you want this. Without the token, the app logs that it skipped the notification and publication carries on. Use the manual run above instead.
 
 ### Switching to production (GBIF.org)
 
@@ -62,10 +66,10 @@ Do this once Dietbank publishes to GBIF.org under its own organisation, Conserva
 2. On the server, set:
    - `GBIF_SANDBOX=False`
    - `GBIF_ORGANIZATION_KEY=aba13a77-07e3-428d-af47-05d98eec61ce`
-   - `PORTAL_GITHUB_TOKEN` (see above)
+   - `PORTAL_GITHUB_TOKEN`, if you have one (see above)
 
    Then restart the app.
-3. Publish the studies. The final step stores the GBIF.org key on the study and triggers the workflow, which rebuilds `assets/data/hosts.json`.
+3. Publish the studies. The final step stores the GBIF.org key on the study. Then rebuild the index: run the workflow with environment `prod`, or wait for the nightly run. With a token, the app starts the run itself.
 
 **Portal (this repository):**
 1. In `_includes/js/config.js`, set `publisherKey` to `aba13a77-07e3-428d-af47-05d98eec61ce`. This changes the occurrence, dataset and literature search scopes. Then remove the duplicate `dietbankPublisherKey`.

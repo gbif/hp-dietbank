@@ -24,11 +24,11 @@ Because the index is a snapshot, a newly published dataset does not appear on `/
 ## Rebuilding the index
 
 Normally the [Host index workflow](../.github/workflows/host-index.yml) does this:
-- after the Dietbank Django app reports a newly registered dataset;
 - every night;
-- when started by hand from the Actions tab.
+- when started by hand from the Actions tab;
+- optionally, triggered by the Dietbank Django app.
 
-The README explains how to activate the trigger from the Django app. The steps below are the manual fallback, and they describe what the workflow does.
+The README explains how to start it by hand. The steps below are the manual fallback, and they describe what the workflow does.
 
 Requirements: Python 3.9 or newer, standard library only, and internet access to the GBIF API.
 
