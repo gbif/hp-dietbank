@@ -1,0 +1,120 @@
+# Rebuilds the host-species index (assets/data/hosts*.json) used by the /hosts page.
+# See docs/host-index.md. Triggered by:
+# - the Dietbank Django app (repository_dispatch "dietbank-dataset-registered") after it registers a
+#   dataset on GBIF, with client_payload {dataset_key, environment: test|prod, study_id}
+# - a nightly schedule (catches missed notifications, re-publications and deletions)
+# - manually from the Actions tab
+name: Host index
+
+on:
+  repository_dispatch:
+    types: [dietbank-dataset-registered]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which index to rebuild
+        type: choice
+        options: [both, test, prod]
+        default: both
+
+permissions:
+  contents: write
+
+concurrency:
+  group: host-index
+  cancel-in-progress: false
+
+env:
+  PUBLISHER_KEY: aba13a77-07e3-428d-af47-05d98eec61ce
+  TEST_DATASETS: _data/test_datasets.yml
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read trigger
+        id: trigger
+        env:
+          EVENT: ${{ github.event_name }}
+          PAYLOAD_KEY: ${{ github.event.client_payload.dataset_key }}
+          PAYLOAD_ENV: ${{ github.event.client_payload.environment }}
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+        run: |
+          key=""
+          case "$EVENT" in
+            repository_dispatch)
+              env="$PAYLOAD_ENV"
+              key="$PAYLOAD_KEY"
+              if ! [[ "$key" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+                echo "::error::Invalid dataset_key in payload: $key"; exit 1
+              fi
+              if [[ "$env" != "test" && "$env" != "prod" ]]; then
+                echo "::error::Invalid environment in payload: $env"; exit 1
+              fi ;;
+            workflow_dispatch) env="${INPUT_ENV:-both}" ;;
+            *) env="both" ;;
+          esac
+          echo "environment=$env" >> "$GITHUB_OUTPUT"
+          echo "dataset_key=$key" >> "$GITHUB_OUTPUT"
+          echo "Rebuilding: $env ${key:+(notified about $key)}"
+
+      - name: Wait until GBIF has indexed the dataset
+        if: steps.trigger.outputs.dataset_key != ''
+        env:
+          KEY: ${{ steps.trigger.outputs.dataset_key }}
+          API: ${{ steps.trigger.outputs.environment == 'prod' && 'https://api.gbif.org/v1' || 'https://api.gbif-test.org/v1' }}
+        run: |
+          # GBIF indexes a new dataset within minutes to a few hours. Wait until the record count
+          # is above zero and unchanged between two checks, so the index isn't built half-way.
+          previous=-1
+          for i in $(seq 1 44); do
+            count=$(curl -sf "$API/occurrence/search?datasetKey=$KEY&limit=0" | python3 -c "import json,sys; print(json.load(sys.stdin)['count'])" || echo 0)
+            echo "check $i: $count records"
+            if [ "$count" -gt 0 ] && [ "$count" -eq "$previous" ]; then exit 0; fi
+            previous=$count
+            sleep 300
+          done
+          echo "::error::Dataset $KEY not indexed on $API after waiting; the nightly run will pick it up"
+          exit 1
+
+      - name: Add new test dataset to the test site
+        if: steps.trigger.outputs.environment == 'test' && steps.trigger.outputs.dataset_key != ''
+        env:
+          KEY: ${{ steps.trigger.outputs.dataset_key }}
+        run: grep -q "$KEY" "$TEST_DATASETS" || echo "- $KEY" >> "$TEST_DATASETS"
+
+      - name: Rebuild test index
+        if: steps.trigger.outputs.environment != 'prod'
+        run: python3 scripts/build_host_index.py --api https://api.gbif-test.org/v1 --dataset-file "$TEST_DATASETS" --out assets/data/hosts-test.json
+
+      - name: Rebuild production index
+        if: steps.trigger.outputs.environment != 'test'
+        run: python3 scripts/build_host_index.py --publisher "$PUBLISHER_KEY" --out assets/data/hosts.json
+
+      - name: Commit if changed
+        env:
+          ENVIRONMENT: ${{ steps.trigger.outputs.environment }}
+          KEY: ${{ steps.trigger.outputs.dataset_key }}
+        run: |
+          # "generated" changes on every run; only commit when the content itself changed
+          changed=$(git diff --name-only -- "$TEST_DATASETS")
+          for f in assets/data/hosts.json assets/data/hosts-test.json; do
+            if ! diff -q <(git show "HEAD:$f" | python3 -c "import json,sys; d=json.load(sys.stdin); d.pop('generated'); print(json.dumps(d, sort_keys=True))") \
+                         <(python3 -c "import json,sys; d=json.load(open('$f')); d.pop('generated'); print(json.dumps(d, sort_keys=True))") >/dev/null; then
+              changed="$changed $f"
+            else
+              git checkout -- "$f"
+            fi
+          done
+          if [ -z "${changed// /}" ]; then echo "No changes"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add $changed
+          git commit -m "Rebuild host index ($ENVIRONMENT${KEY:+, $KEY})"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

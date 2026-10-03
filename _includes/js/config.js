@@ -94,7 +94,7 @@ var siteConfig = {
   ],
   "messages": {},
   "occurrenceSearch": {
-    // Overridden per environment by dietbank.occurrenceScope in _config*.yml, see _includes/head.html.
+    // The test site overrides this with the datasets in _data/test_datasets.yml, see _includes/head.html.
     // No Liquid in this file: GBIF's build checks it as plain JavaScript.
     "scope": {
       "type": "equals",

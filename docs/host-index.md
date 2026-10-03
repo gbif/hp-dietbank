@@ -23,7 +23,14 @@ Because the index is a snapshot, a newly published dataset does not appear on `/
 
 ## Rebuilding the index
 
-Requirements: Python 3.8 or newer, standard library only, and internet access to the GBIF API.
+Normally the [Host index workflow](../.github/workflows/host-index.yml) does this:
+- after the Dietbank Django app reports a newly registered dataset;
+- every night;
+- when started by hand from the Actions tab.
+
+The README explains how to activate the trigger from the Django app. The steps below are the manual fallback, and they describe what the workflow does.
+
+Requirements: Python 3.9 or newer, standard library only, and internet access to the GBIF API.
 
 ### Production (GBIF.org)
 
@@ -41,19 +48,17 @@ Also rebuild after re-publishing a dataset whose samples or hosts changed, or af
 
 ### Test (gbif-test)
 
-The test publisher is a shared GBIF test organisation, so test datasets are listed by key. For every new test dataset:
+The test publisher is a shared GBIF test organisation, so the test site lists its datasets by key in `_data/test_datasets.yml`. That list limits the test site's occurrence search (see `_includes/head.html`) and tells the script which datasets to read. For a new test dataset:
 
-1. Add its key to `dietbank.occurrenceScope.values` in `_config_test.yml`.
-2. Rebuild with one `--dataset` per key:
+1. Add its key to `_data/test_datasets.yml`.
+2. Rebuild:
 
    ```bash
    python3 scripts/build_host_index.py --api https://api.gbif-test.org/v1 \
-     --dataset f63bb1d0-b05b-4071-b473-075911d8d8ab \
-     --dataset 6f6edfa8-c0b2-4a9f-859b-145288dd6022 \
-     --out assets/data/hosts-test.json
+     --dataset-file _data/test_datasets.yml --out assets/data/hosts-test.json
    ```
 
-3. Commit `_config_test.yml` and `assets/data/hosts-test.json`.
+3. Commit both files.
 
 ### Script options
 
@@ -62,6 +67,7 @@ The test publisher is a shared GBIF test organisation, so test datasets are list
 | `--api` | `https://api.gbif.org/v1` | GBIF API to read occurrences from |
 | `--publisher KEY` | | include all occurrence and sampling-event datasets of a publisher (repeatable) |
 | `--dataset KEY` | | include a dataset (repeatable) |
+| `--dataset-file PATH` | | include the datasets listed in a file, one key per line (`- key` YAML list lines work) |
 | `--out PATH` | `assets/data/hosts.json` | output file |
 | `--relation NAME` | host, host of, eaten by, consumed by, predator, diet of, prey of | `associatedTaxa` relations treated as the host (repeatable) |
 | `--allow-bare` | off | treat values without a relation (e.g. just `Ficedula hypoleuca`) as the host |
@@ -95,12 +101,4 @@ Then open http://localhost:4000/hosts. Changes to files rebuild automatically. C
 
 ## Where changes go live
 
-| Site | When it updates | GBIF data | Host index |
-|---|---|---|---|
-| https://dietbank.hp.gbif-staging.org (staging) | every commit (in practice, merges to `master`) | GBIF.org | `hosts.json` |
-| https://dietbank.hp.gbif-test.org (test) | builds alongside staging; uses `_config_test.yml` | gbif-test | `hosts-test.json` |
-| https://dietbank.hp.gbif.org (production) | when you make a GitHub release | GBIF.org | `hosts.json` |
-
-GBIF's build server rebuilds a site a few minutes after a change. According to [GBIF's hosted-portal docs](https://github.com/gbif/hosted-portals/blob/main/getting-started/for-authors.md), production updates only on a [GitHub release](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
-
-While Dietbank only publishes to gbif-test, check host-filter changes on the **test** site. Staging and production read GBIF.org, which has no Dietbank data yet.
+See *Releasing* in the [README](../README.md#releasing).

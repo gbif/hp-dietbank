@@ -7,11 +7,11 @@
 {% endif %}
 
 {% comment %}
-  Per-environment occurrence scope (see docs/host-index.md). This lives here rather than in
+  Test site only: limit the occurrence search to the datasets listed in _data/<dietbank.scopeDatasets>.yml. This lives here rather than in
   _includes/js/config.js because GBIF's build checks config.js as plain JavaScript, without Liquid.
 {% endcomment %}
-{% if site.dietbank.occurrenceScope %}
+{% if site.dietbank.scopeDatasets %}
   <script>
-    siteConfig.occurrenceSearch.scope = {{ site.dietbank.occurrenceScope | jsonify }};
+    siteConfig.occurrenceSearch.scope = {"type": "in", "key": "datasetKey", "values": {{ site.data[site.dietbank.scopeDatasets] | jsonify }}};
   </script>
 {% endif %}

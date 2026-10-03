@@ -1,0 +1,4 @@
+# Dietbank datasets on gbif-test, shown on the test site (dietbank.hp.gbif-test.org).
+# One dataset key per line. The host-index workflow appends keys it is notified about.
+- f63bb1d0-b05b-4071-b473-075911d8d8ab
+- 6f6edfa8-c0b2-4a9f-859b-145288dd6022
