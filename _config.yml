@@ -212,4 +212,5 @@ defaults:
 # Dietbank-specific settings (see docs/host-index.md)
 dietbank:
   hostIndex: /assets/data/hosts.json # built by scripts/build_host_index.py from GBIF.org
-  # occurrenceScope: overrides siteConfig.occurrenceSearch.scope (predicate); default is publishingOrg in config.js
+  # scopeDatasets: name of a _data file with dataset keys; limits the occurrence search to them
+  # (set in _config_test.yml; otherwise the publishingOrg scope in config.js applies)

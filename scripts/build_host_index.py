@@ -16,9 +16,9 @@ writes a static JSON file with, per host:
 
 Only the Python standard library is needed. Examples:
 
-  # the test dataset on gbif-test
+  # the test datasets on gbif-test
   python3 scripts/build_host_index.py --api https://api.gbif-test.org/v1 \
-      --dataset f63bb1d0-b05b-4071-b473-075911d8d8ab
+      --dataset-file _data/test_datasets.yml --out assets/data/hosts-test.json
 
   # everything published by Dietbank on GBIF.org
   python3 scripts/build_host_index.py --publisher aba13a77-07e3-428d-af47-05d98eec61ce
@@ -178,6 +178,7 @@ def main():
     p.add_argument("--match-api", default="https://api.gbif.org/v1", help="API used to match host names to the GBIF Backbone")
     p.add_argument("--publisher", action="append", default=[], help="publishingOrg key (repeatable)")
     p.add_argument("--dataset", action="append", default=[], help="dataset key (repeatable)")
+    p.add_argument("--dataset-file", help="file with one dataset key per line, optionally as a YAML list ('- key')")
     p.add_argument("--relation", action="append", help=f"associatedTaxa relation(s) treated as host (default: {DEFAULT_RELATIONS})")
     p.add_argument("--allow-bare", action="store_true", help="treat associatedTaxa values without a relation as host")
     p.add_argument("--out", default="assets/data/hosts.json")
@@ -185,6 +186,12 @@ def main():
 
     relations = {r.lower() for r in (args.relation or DEFAULT_RELATIONS)}
     dataset_keys = list(args.dataset)
+    if args.dataset_file:
+        with open(args.dataset_file) as f:
+            for line in f:
+                line = line.split("#", 1)[0].strip().removeprefix("-").strip()
+                if line:
+                    dataset_keys.append(line)
     for org in args.publisher:
         offset = 0
         while True:
@@ -193,8 +200,8 @@ def main():
             offset += 100
             if page["endOfRecords"]:
                 break
-    if not (args.dataset or args.publisher):
-        p.error("pass --dataset and/or --publisher")
+    if not (args.dataset or args.dataset_file or args.publisher):
+        p.error("pass --dataset, --dataset-file and/or --publisher")
 
     by_host = collections.defaultdict(list)
     dataset_hosts = collections.defaultdict(set)
