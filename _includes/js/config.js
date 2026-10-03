@@ -94,12 +94,13 @@ var siteConfig = {
   ],
   "messages": {},
   "occurrenceSearch": {
-    // Per-environment override: set dietbank.occurrenceScope (a predicate) in _config*.yml
-    "scope": {% if site.dietbank.occurrenceScope %}{{ site.dietbank.occurrenceScope | jsonify }}{% else %}{
+    // Overridden per environment by dietbank.occurrenceScope in _config*.yml, see _includes/head.html.
+    // No Liquid in this file: GBIF's build checks it as plain JavaScript.
+    "scope": {
       "type": "equals",
       "key": "publishingOrg",
       "value": publisherKey
-    }{% endif %},
+    },
     "highlightedFilters": [
       "taxonKey",
       "verbatimScientificName",
